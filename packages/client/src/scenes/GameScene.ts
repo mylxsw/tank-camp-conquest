@@ -1,10 +1,15 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
-import type { PlayerInput } from "@tcc/shared";
+import { MAP_WORLD_SIZE, type DeathStats, type PlayerInput } from "@tcc/shared";
 import { InputManager } from "../input/InputManager.js";
 import { joinTankRoom } from "../net/ColyseusClient.js";
 import { CampRenderer } from "../render/CampRenderer.js";
 import { TankSprite } from "../render/TankSprite.js";
+import { Hud } from "../ui/Hud.js";
+import { Minimap } from "../ui/Minimap.js";
+
+type WorldNeutral = { x: number; y: number };
+type WorldAirdrop = { x: number; y: number; claimed: boolean };
 
 export class GameScene extends Phaser.Scene {
   private room!: Room;
@@ -12,6 +17,10 @@ export class GameScene extends Phaser.Scene {
   private camps!: CampRenderer;
   private selfId = "";
   private inputManager!: InputManager;
+  private hud!: Hud;
+  private minimap!: Minimap;
+  private neutrals: WorldNeutral[] = [];
+  private airdrops: WorldAirdrop[] = [];
 
   constructor() {
     super("GameScene");
@@ -21,7 +30,9 @@ export class GameScene extends Phaser.Scene {
     this.room = await joinTankRoom(data.nickname || "Guest");
     this.selfId = this.room.sessionId;
     this.camps = new CampRenderer(this);
-    this.cameras.main.setBounds(0, 0, 64 * 32, 64 * 32);
+    this.hud = new Hud(this);
+    this.minimap = new Minimap(this);
+    this.cameras.main.setBounds(0, 0, MAP_WORLD_SIZE, MAP_WORLD_SIZE);
 
     this.room.state.players.onAdd((player: any, key: string) => {
       const color = key === this.selfId ? 0x44dd88 : 0xdd5555;
@@ -31,11 +42,18 @@ export class GameScene extends Phaser.Scene {
       this.tanks.get(key)?.destroy();
       this.tanks.delete(key);
     });
-    this.room.onMessage("eliminated", (payload: any) => {
+    this.room.onMessage("eliminated", (payload: { playerId: string; stats: DeathStats | null }) => {
       if (payload.playerId === this.selfId) {
         this.scene.start("DeathScene", { stats: payload.stats });
       }
     });
+    this.room.onMessage(
+      "worldMeta",
+      (msg: { neutrals?: WorldNeutral[]; airdrops?: WorldAirdrop[] }) => {
+        this.neutrals = msg.neutrals ?? [];
+        this.airdrops = msg.airdrops ?? [];
+      },
+    );
 
     this.inputManager = new InputManager(this, false);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -65,5 +83,42 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.camps?.sync(this.room.state.camps, this.selfId);
+    this.syncHudAndMinimap();
+  }
+
+  private syncHudAndMinimap(): void {
+    const self = this.room.state.players.get(this.selfId);
+    const campList: Array<{ worldX: number; worldY: number; ownerPlayerId: string; protectionRemaining: number }> =
+      [];
+    this.room.state.camps.forEach((c: any) => {
+      campList.push({
+        worldX: c.worldX,
+        worldY: c.worldY,
+        ownerPlayerId: c.ownerPlayerId ?? "",
+        protectionRemaining: c.protectionRemaining ?? 0,
+      });
+    });
+
+    let protectionRemaining = 0;
+    for (const c of campList) {
+      if (c.ownerPlayerId === this.selfId) {
+        protectionRemaining = Math.max(protectionRemaining, c.protectionRemaining);
+      }
+    }
+
+    this.hud?.sync({
+      selectedAmmo: self?.tank?.selectedAmmo ?? 0,
+      ammoSiege: self?.tank?.ammoSiege ?? 0,
+      ammoNormal: self?.tank?.ammoNormal ?? 0,
+      campCount: self?.campCount ?? 0,
+      protectionRemaining,
+      softPressureActive: !!this.room.state.softPressureActive,
+    });
+    this.minimap?.sync({
+      camps: campList,
+      neutrals: this.neutrals,
+      airdrops: this.airdrops,
+      selfId: this.selfId,
+    });
   }
 }
