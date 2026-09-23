@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AmmoType, CORE_MAX_HP, MAP_TILES, NORMAL_DAMAGE_TANK, SIEGE_DAMAGE_CORE,
-  SIEGE_DAMAGE_TANK, TANK_MAX_HP, TILE_SIZE,
+  SIEGE_DAMAGE_TANK, START_NORMAL_AMMO, START_SIEGE_AMMO, TANK_MAX_HP, TILE_SIZE,
 } from "../constants.js";
 import { createInitialMap } from "../map/createInitialMap.js";
 import { Terrain, terrainIndex } from "../map/terrain.js";
@@ -68,6 +68,29 @@ describe("combat", () => {
     // small steps so discrete projectile motion does not overshoot the core hit radius
     for (let i = 0; i < 20; i++) advanceProjectiles(state, 0.02, i * 0.02);
     expect(camp.coreHp).toBeLessThan(CORE_MAX_HP);
+  });
+
+
+  it("core hit wins over nearby camp walls when projectile is near center", () => {
+    const state = { ...createInitialMap(8), players: {} } as RoomSimState;
+    const camp = state.camps[3]!;
+    state.players["A"] = pl("A", [0], {
+      x: camp.worldX - 28, y: camp.worldY, dir: 1,
+      selectedAmmo: AmmoType.Siege, ammoSiege: 5,
+    });
+    state.players["B"] = pl("B", [3]);
+    camp.ownerPlayerId = "B";
+    camp.protectionUntil = 0;
+    camp.coreHp = CORE_MAX_HP;
+    // Keep walls — core-first collision must still register
+    tryFire(state, "A", 0);
+    for (let i = 0; i < 10; i++) advanceProjectiles(state, 0.05, i * 0.05);
+    expect(camp.coreHp).toBeLessThan(CORE_MAX_HP);
+  });
+
+  it("starting ammo constants allow first siege attack", () => {
+    expect(START_NORMAL_AMMO).toBeGreaterThanOrEqual(40);
+    expect(START_SIEGE_AMMO).toBeGreaterThanOrEqual(5);
   });
 
   it("invulnerable tank ignores damage", () => {

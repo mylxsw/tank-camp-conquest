@@ -5,6 +5,8 @@ export class Hud {
   private campText: Phaser.GameObjects.Text;
   private protectText: Phaser.GameObjects.Text;
   private pressureText: Phaser.GameObjects.Text;
+  private hintText: Phaser.GameObjects.Text;
+  private legendText: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene) {
     const style = { fontSize: "16px", color: "#ffffff", backgroundColor: "#00000066" };
@@ -15,6 +17,32 @@ export class Hud {
       .text(12, 84, "", { ...style, color: "#ffaa55" })
       .setScrollFactor(0)
       .setDepth(1000);
+
+    this.hintText = scene.add
+      .text(
+        12,
+        112,
+        "操作: WASD/方向键移动 | 空格/J射击 | 1普通 2攻城 3高爆 | Tab切换普通↔攻城\n手机: 左下方向 右下射击/切弹",
+        { fontSize: "13px", color: "#ddeeff", backgroundColor: "#00000088" },
+      )
+      .setScrollFactor(0)
+      .setDepth(1000)
+      .setAlpha(0.92);
+
+    this.legendText = scene.add
+      .text(
+        12,
+        scene.scale.height - 52,
+        "图例: 绿己方坦克 | 红敌方 | 靶心=核心 | 橙砖墙 | 银灰钢墙 | 蓝水 | 绿草",
+        { fontSize: "12px", color: "#eeeeee", backgroundColor: "#00000088" },
+      )
+      .setScrollFactor(0)
+      .setDepth(1000);
+
+    // Fade the long control hint after a short intro.
+    scene.time.delayedCall(18000, () => {
+      scene.tweens.add({ targets: this.hintText, alpha: 0.35, duration: 800 });
+    });
   }
 
   sync(opts: {

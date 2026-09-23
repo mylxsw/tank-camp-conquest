@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CORE_PROTECTION_MAX_S, CORE_PROTECTION_MIN_S } from "../constants.js";
+import { CORE_PROTECTION_MAX_S, CORE_PROTECTION_MIN_S, START_NORMAL_AMMO, START_SIEGE_AMMO } from "../constants.js";
 import { createInitialMap } from "../map/createInitialMap.js";
 import { assignCampForJoin } from "../sim/joinAssign.js";
 import type { PlayerState, RoomSimState } from "../types.js";
@@ -12,6 +12,8 @@ describe("assignCampForJoin", () => {
     expect(state.camps[r!.campId]!.ownerPlayerId).toBe("u1");
     expect(r!.protectionSeconds).toBeGreaterThanOrEqual(CORE_PROTECTION_MIN_S);
     expect(r!.protectionSeconds).toBeLessThanOrEqual(CORE_PROTECTION_MAX_S);
+    expect(state.players["u1"]!.tank.ammoNormal).toBe(START_NORMAL_AMMO);
+    expect(state.players["u1"]!.tank.ammoSiege).toBe(START_SIEGE_AMMO);
   });
 
   it("reclaims an AI camp when no empty camp remains", () => {

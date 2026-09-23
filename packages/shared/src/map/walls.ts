@@ -1,7 +1,10 @@
 import { BRICK_HP, MAP_TILES, TILE_SIZE } from "../constants.js";
 import type { CampSlot, WallCell } from "../types.js";
 
-/** 每座营核心内侧简易围墙：四面各留一个入口缺口。 */
+/**
+ * Camp enclosure: 5×5 ring with 3-tile-wide cardinal entrances so shots/tanks
+ * can reach the core without the brown brick ring eating every projectile.
+ */
 export function buildCampWalls(slots: CampSlot[]): WallCell[] {
   const walls: WallCell[] = [];
   const seen = new Set<string>();
@@ -19,8 +22,9 @@ export function buildCampWalls(slots: CampSlot[]): WallCell[] {
     for (let dx = -2; dx <= 2; dx++) {
       for (let dy = -2; dy <= 2; dy++) {
         if (Math.abs(dx) !== 2 && Math.abs(dy) !== 2) continue;
-        if (dx === 0 && Math.abs(dy) === 2) continue;
-        if (dy === 0 && Math.abs(dx) === 2) continue;
+        // 3-wide gaps on N/S/E/W
+        if (Math.abs(dx) <= 1 && Math.abs(dy) === 2) continue;
+        if (Math.abs(dy) <= 1 && Math.abs(dx) === 2) continue;
         add(s.tileX + dx, s.tileY + dy, "brick");
       }
     }

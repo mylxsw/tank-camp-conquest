@@ -179,7 +179,9 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
     row.isAi = p.isAi;
     row.campCount = p.campIds.length;
     row.eliminated = p.eliminated;
-    const t = row.tank ?? new TankSchema();
+    // Mutate nested TankSchema in place — reassignment can drop field patches.
+    if (!row.tank) row.tank = new TankSchema();
+    const t = row.tank;
     t.playerId = p.tank.playerId;
     t.x = p.tank.x;
     t.y = p.tank.y;
@@ -192,7 +194,6 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
     t.ammoNormal = p.tank.ammoNormal;
     t.ammoSiege = p.tank.ammoSiege;
     t.ammoHE = p.tank.ammoHE;
-    row.tank = t;
   }
 
   private syncCamps(): void {

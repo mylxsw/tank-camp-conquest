@@ -20,8 +20,10 @@ export const SIEGE_DAMAGE_TANK = 10;
 export const HE_DAMAGE_BRICK = 3;
 
 export const CORE_MAX_HP = 200; // 与 SIEGE_DAMAGE_CORE=40 配比：约 2–3 名持攻城弹玩家数十秒可拆无保护核心
-export const CORE_PROTECTION_MIN_S = 30;
-export const CORE_PROTECTION_MAX_S = 60;
+/** Core hit radius in world px — large enough that 20Hz steps rarely tunnel through. */
+export const CORE_HIT_RADIUS = TILE_SIZE;
+export const CORE_PROTECTION_MIN_S = 15;
+export const CORE_PROTECTION_MAX_S = 30;
 export const RESPAWN_INVULN_S = 1.5;
 
 export const SOFT_PRESSURE_CAMP_THRESHOLD = 8;
@@ -32,8 +34,9 @@ export const MAX_ARMOR_PLATES = 3;
 export const ARMOR_PLATE_HP = 30;
 export const REPAIR_AMOUNT = 40;
 
-export const START_NORMAL_AMMO = 30;
-export const START_SIEGE_AMMO = 0;
+/** Enough for a first attack pass without camping depots. */
+export const START_NORMAL_AMMO = 60;
+export const START_SIEGE_AMMO = 8;
 
 export const AI_FILL_TARGET_PLAYERS = 12;
 export const VISIBILITY_RADIUS = 640;

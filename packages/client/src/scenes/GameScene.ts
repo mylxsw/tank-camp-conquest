@@ -104,11 +104,11 @@ export class GameScene extends Phaser.Scene {
     for (const [id, sprite] of this.tanks) {
       const p = this.room.state.players.get(id);
       if (p) sprite.sync(p);
+      sprite.updateLerp();
       const show = id === this.selfId || visibleIds === null || visibleIds.has(id);
-      sprite.body.setVisible(show);
-      sprite.label.setVisible(show);
-      if (id === this.selfId && p) {
-        this.cameras.main.centerOn(p.tank.x, p.tank.y);
+      sprite.setVisible(show);
+      if (id === this.selfId) {
+        this.cameras.main.centerOn(sprite.x, sprite.y);
       }
     }
     this.camps?.sync(this.room.state.camps, this.selfId);
@@ -135,10 +135,11 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    const tank = self?.tank;
     this.hud?.sync({
-      selectedAmmo: self?.tank?.selectedAmmo ?? 0,
-      ammoSiege: self?.tank?.ammoSiege ?? 0,
-      ammoNormal: self?.tank?.ammoNormal ?? 0,
+      selectedAmmo: tank?.selectedAmmo ?? 0,
+      ammoSiege: tank?.ammoSiege ?? 0,
+      ammoNormal: tank?.ammoNormal ?? 0,
       campCount: self?.campCount ?? 0,
       protectionRemaining,
       softPressureActive: !!this.room.state.softPressureActive,

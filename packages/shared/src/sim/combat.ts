@@ -1,5 +1,5 @@
 import {
-  AmmoType, HE_DAMAGE_BRICK, MAP_TILES, MAP_WORLD_SIZE, NORMAL_DAMAGE_BRICK,
+  AmmoType, CORE_HIT_RADIUS, HE_DAMAGE_BRICK, MAP_TILES, MAP_WORLD_SIZE, NORMAL_DAMAGE_BRICK,
   NORMAL_DAMAGE_TANK, PROJECTILE_RADIUS, PROJECTILE_SPEED, SIEGE_DAMAGE_CORE,
   SIEGE_DAMAGE_TANK, STEEL_INDESTRUCTIBLE, TANK_FIRE_COOLDOWN, TANK_RADIUS,
   TANK_SPEED, TILE_SIZE,
@@ -160,6 +160,19 @@ export function advanceProjectiles(
       continue;
     }
 
+    // Cores before walls: camp rings used to eat shots aimed at the HQ.
+    for (const camp of state.camps) {
+      const dx = proj.x - camp.worldX;
+      const dy = proj.y - camp.worldY;
+      if (dx * dx + dy * dy <= CORE_HIT_RADIUS * CORE_HIT_RADIUS) {
+        const dmg = proj.ammo === AmmoType.Siege ? SIEGE_DAMAGE_CORE : Math.floor(NORMAL_DAMAGE_TANK / 5);
+        events.push(...damageCore(state, camp.campId, dmg, proj.ownerPlayerId, now));
+        proj.alive = false;
+        break;
+      }
+    }
+    if (!proj.alive) continue;
+
     const wall = state.walls.find(
       (w) => w.hp > 0 && circleHitsTile(proj.x, proj.y, PROJECTILE_RADIUS, w.tileX, w.tileY),
     );
@@ -173,18 +186,6 @@ export function advanceProjectiles(
       proj.alive = false;
       continue;
     }
-
-    for (const camp of state.camps) {
-      const dx = proj.x - camp.worldX;
-      const dy = proj.y - camp.worldY;
-      if (dx * dx + dy * dy <= (TILE_SIZE * 0.6) ** 2) {
-        const dmg = proj.ammo === AmmoType.Siege ? SIEGE_DAMAGE_CORE : Math.floor(NORMAL_DAMAGE_TANK / 5);
-        events.push(...damageCore(state, camp.campId, dmg, proj.ownerPlayerId, now));
-        proj.alive = false;
-        break;
-      }
-    }
-    if (!proj.alive) continue;
 
     for (const other of Object.values(state.players)) {
       if (!other.tank.alive || other.playerId === proj.ownerPlayerId) continue;
