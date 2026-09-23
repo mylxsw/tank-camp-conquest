@@ -9,7 +9,7 @@ import {
 import { InputManager } from "../input/InputManager.js";
 import { joinTankRoom } from "../net/ColyseusClient.js";
 import { CampRenderer } from "../render/CampRenderer.js";
-import { MapRenderer, type MapStaticPayload } from "../render/MapRenderer.js";
+import { MapRenderer, type MapStaticPayload, type WallPatch } from "../render/MapRenderer.js";
 import { ProjectileRenderer } from "../render/ProjectileRenderer.js";
 import { TankSprite } from "../render/TankSprite.js";
 import { Hud } from "../ui/Hud.js";
@@ -31,19 +31,27 @@ export class GameScene extends Phaser.Scene {
   private neutrals: WorldNeutral[] = [];
   private airdrops: WorldAirdrop[] = [];
   private visor: VisibleSnapshot | null = null;
+  private disconnected = false;
 
   constructor() {
     super("GameScene");
   }
 
   async create(data: { nickname: string }): Promise<void> {
-    this.room = await joinTankRoom(data.nickname || "Guest");
-    this.selfId = this.room.sessionId;
     this.camps = new CampRenderer(this);
     this.projectiles = new ProjectileRenderer(this);
     this.hud = new Hud(this);
     this.minimap = new Minimap(this);
     this.cameras.main.setBounds(0, 0, MAP_WORLD_SIZE, MAP_WORLD_SIZE);
+
+    try {
+      this.room = await joinTankRoom(data.nickname || "Guest");
+    } catch (err) {
+      console.error(err);
+      this.hud.showToast("连接断开，刷新重进");
+      return;
+    }
+    this.selfId = this.room.sessionId;
 
     this.room.state.players.onAdd((player: any, key: string) => {
       const color = key === this.selfId ? 0x44dd88 : 0xdd5555;
@@ -59,8 +67,15 @@ export class GameScene extends Phaser.Scene {
       }
     });
     this.room.onMessage("mapStatic", (msg: MapStaticPayload) => {
-      if (this.mapRenderer) return;
+      if (this.mapRenderer) {
+        this.mapRenderer.destroy();
+        this.mapRenderer = null;
+      }
       this.mapRenderer = new MapRenderer(this, msg);
+    });
+    this.room.onMessage("wallPatch", (msg: { walls?: WallPatch[] } | WallPatch[]) => {
+      const patches = Array.isArray(msg) ? msg : (msg.walls ?? []);
+      this.mapRenderer?.applyWallPatches(patches);
     });
     this.room.onMessage("visor", (msg: VisibleSnapshot) => {
       this.visor = msg;
@@ -78,6 +93,17 @@ export class GameScene extends Phaser.Scene {
       },
     );
 
+    this.room.onLeave(() => {
+      if (this.disconnected) return;
+      this.disconnected = true;
+      this.hud?.showToast("连接断开，刷新重进");
+    });
+    this.room.onError((_code, _message) => {
+      if (this.disconnected) return;
+      this.disconnected = true;
+      this.hud?.showToast("连接断开，刷新重进");
+    });
+
     this.inputManager = new InputManager(this, false);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.inputManager?.destroy();
@@ -87,7 +113,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(): void {
-    if (!this.room) return;
+    if (!this.room || this.disconnected) return;
     if (this.inputManager) {
       const sample = this.inputManager.sample();
       const payload: PlayerInput = {
@@ -117,8 +143,12 @@ export class GameScene extends Phaser.Scene {
 
   private syncHudAndMinimap(): void {
     const self = this.room.state.players.get(this.selfId);
-    const campList: Array<{ worldX: number; worldY: number; ownerPlayerId: string; protectionRemaining: number }> =
-      [];
+    const campList: Array<{
+      worldX: number;
+      worldY: number;
+      ownerPlayerId: string;
+      protectionRemaining: number;
+    }> = [];
     this.room.state.camps.forEach((c: any) => {
       campList.push({
         worldX: c.worldX,

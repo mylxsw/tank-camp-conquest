@@ -111,6 +111,10 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
       this.aiAccMs = 0;
       refreshAiInputs(this.sim, this.inputs, this.sim.time, this.rand);
     }
+    const wallHpBefore = new Map<string, number>();
+    for (const w of this.sim.walls) {
+      wallHpBefore.set(`${w.tileX},${w.tileY}`, w.hp);
+    }
     const events = simulateTick(this.sim, this.inputs, TICK_DT, this.rand);
     for (const id of Object.keys(this.inputs)) {
       const inp = this.inputs[id]!;
@@ -143,6 +147,21 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
         delete this.inputs[victimId];
       }
     }
+    const wallPatches: Array<{ tileX: number; tileY: number; hp: number }> = [];
+    for (const w of this.sim.walls) {
+      const key = `${w.tileX},${w.tileY}`;
+      const prev = wallHpBefore.get(key);
+      if (prev === undefined || prev !== w.hp) {
+        wallPatches.push({ tileX: w.tileX, tileY: w.tileY, hp: w.hp });
+        // Keep join-time mapStatic in sync for late joiners
+        const cached = this.mapStatic.walls.find((x) => x.tileX === w.tileX && x.tileY === w.tileY);
+        if (cached) cached.hp = w.hp;
+      }
+    }
+    if (wallPatches.length > 0) {
+      this.broadcast("wallPatch", { walls: wallPatches });
+    }
+
     this.visorAccMs += 1000 / TICK_HZ;
     if (this.visorAccMs >= 100) {
       this.visorAccMs = 0;

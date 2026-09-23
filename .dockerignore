@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.superpowers
+.worktrees
+docs/superpowers
+*.log
+.env
+.env.*
+coverage
+**/*.tsbuildinfo

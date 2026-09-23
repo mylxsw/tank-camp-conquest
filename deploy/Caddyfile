@@ -1,0 +1,6 @@
+# SITE_ADDRESS=:80 → HTTP (IP / local)
+# SITE_ADDRESS=tank.example.com → automatic HTTPS (Let's Encrypt) + HTTP→HTTPS redirect
+{$SITE_ADDRESS} {
+	encode gzip
+	reverse_proxy web:80
+}

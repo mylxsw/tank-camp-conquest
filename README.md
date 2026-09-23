@@ -23,3 +23,7 @@ corepack pnpm --filter @tcc/client dev
 ```bash
 corepack pnpm --filter @tcc/shared build
 ```
+
+## 部署（VPS / 好友）
+
+见 [docs/deploy-vps.md](docs/deploy-vps.md)：域名 DNS → `.env` → `docker compose up -d --build`（Caddy 自动 HTTPS；也可 IP+HTTP）。
