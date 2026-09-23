@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
+import type { PlayerInput } from "@tcc/shared";
+import { InputManager } from "../input/InputManager.js";
 import { joinTankRoom } from "../net/ColyseusClient.js";
 import { CampRenderer } from "../render/CampRenderer.js";
 import { TankSprite } from "../render/TankSprite.js";
@@ -9,6 +11,7 @@ export class GameScene extends Phaser.Scene {
   private tanks = new Map<string, TankSprite>();
   private camps!: CampRenderer;
   private selfId = "";
+  private inputManager!: InputManager;
 
   constructor() {
     super("GameScene");
@@ -33,10 +36,27 @@ export class GameScene extends Phaser.Scene {
         this.scene.start("DeathScene", { stats: payload.stats });
       }
     });
+
+    this.inputManager = new InputManager(this, false);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.inputManager?.destroy();
+    });
   }
 
   update(): void {
     if (!this.room) return;
+    if (this.inputManager) {
+      const sample = this.inputManager.sample();
+      const payload: PlayerInput = {
+        up: sample.up,
+        down: sample.down,
+        left: sample.left,
+        right: sample.right,
+        fire: sample.fire,
+        selectAmmo: sample.selectAmmo,
+      };
+      this.room.send("input", payload);
+    }
     for (const [id, sprite] of this.tanks) {
       const p = this.room.state.players.get(id);
       if (p) sprite.sync(p);
