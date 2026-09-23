@@ -12,5 +12,11 @@
     "dev:client": "pnpm --filter @tcc/client dev",
     "typecheck": "pnpm -r run typecheck",
     "postinstall": "pnpm --filter @tcc/shared run build"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "msgpackr-extract"
+    ]
   }
 }
