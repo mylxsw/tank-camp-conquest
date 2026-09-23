@@ -19,10 +19,7 @@ function detectPreferTouch(preferTouch: boolean): boolean {
   const coarse =
     typeof window.matchMedia === "function" &&
     window.matchMedia("(pointer: coarse)").matches;
-  const hasTouch =
-    "ontouchstart" in window ||
-    (typeof navigator !== "undefined" && (navigator.maxTouchPoints ?? 0) > 0);
-  return coarse || hasTouch;
+  return coarse;
 }
 
 export class InputManager {
