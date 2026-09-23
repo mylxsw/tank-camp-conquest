@@ -1,8 +1,10 @@
 {
   "name": "tank-camp-conquest",
   "private": true,
-  "packageManager": "pnpm@9.15.0",
-  "engines": { "node": ">=20" },
+  "packageManager": "pnpm@11.5.2",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "pnpm -r run build",
     "test": "pnpm --filter @tcc/shared test",

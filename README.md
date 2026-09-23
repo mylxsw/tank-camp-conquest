@@ -6,7 +6,7 @@ Stage A client uses procedural pixel art (Phaser textures.generate) for tanks, t
 
 ## 开发
 
-需要 Node.js ≥ 20。建议用 corepack 提供的 pnpm：
+需要 Node.js ≥ 20。仓库 `packageManager` 为 **pnpm@11.5.2**（与 corepack 对齐）。建议：
 
 ```bash
 corepack enable

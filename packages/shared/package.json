@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "prepare": "pnpm run build",
+    "prepare": "tsc -p tsconfig.json",
     "build": "rm -f tsconfig.tsbuildinfo && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
