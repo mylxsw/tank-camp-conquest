@@ -284,8 +284,20 @@ function gen(scene: Phaser.Scene, key: PixelKey, data: string[], pixelWidth = 2)
 
 /** Register all Stage A pixel textures once (idempotent). */
 export function registerPixelAtlas(scene: Phaser.Scene): void {
-  if (scene.textures.exists(PIXEL_KEYS.ground)) return;
+  if (scene.textures.exists(PIXEL_KEYS.ground)) {
+    sharpenAll(scene);
+    return;
+  }
   for (const [key, data] of Object.entries(TILES)) {
     gen(scene, key as PixelKey, data, 2);
+  }
+  sharpenAll(scene);
+}
+
+/** Keep glyphs crisp under FIT scale / retina. */
+function sharpenAll(scene: Phaser.Scene): void {
+  for (const key of Object.values(PIXEL_KEYS)) {
+    if (!scene.textures.exists(key)) continue;
+    scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
   }
 }
