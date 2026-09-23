@@ -22,9 +22,9 @@ export class CampRenderer {
           : PIXEL_KEYS.coreEnemy;
       if (!g) {
         const img = this.scene.add.image(c.worldX, c.worldY, tex);
-        img.setDisplaySize(28, 28);
+        img.setDisplaySize(32, 32);
         const label = this.scene.add
-          .text(c.worldX, c.worldY + 18, "核心", {
+          .text(c.worldX, c.worldY + 20, "核心", {
             fontSize: "10px",
             color: "#ffeebb",
             backgroundColor: "#00000066",
@@ -34,7 +34,7 @@ export class CampRenderer {
         this.cores.set(key, g);
       } else {
         g.img.setPosition(c.worldX, c.worldY);
-        g.label.setPosition(c.worldX, c.worldY + 18);
+        g.label.setPosition(c.worldX, c.worldY + 20);
         if (g.tex !== tex) {
           g.img.setTexture(tex);
           g.tex = tex;

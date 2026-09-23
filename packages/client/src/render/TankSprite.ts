@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { PIXEL_KEYS } from "./PixelAtlas.js";
 
-const BARREL_LEN = 18;
+const BARREL_LEN = 22;
 /** Snap when teleport/respawn distance exceeds this. */
 const SNAP_DIST = 80;
 const LERP = 0.28;
@@ -27,10 +27,10 @@ export class TankSprite {
     this.displayY = player.tank.y;
     this._dir = player.tank.dir ?? 0;
     this.body = scene.add.image(this.displayX, this.displayY, PIXEL_KEYS.tankBody);
-    this.body.setDisplaySize(28, 28);
+    this.body.setDisplaySize(30, 30);
     this.body.setTint(color);
     this.barrel = scene.add.image(this.displayX, this.displayY, PIXEL_KEYS.tankBarrel);
-    this.barrel.setDisplaySize(6, BARREL_LEN);
+    this.barrel.setDisplaySize(7, BARREL_LEN);
     this.barrel.setOrigin(0.5, 1);
     this.label = scene.add
       .text(this.displayX, this.displayY - 26, player.nickname, {
