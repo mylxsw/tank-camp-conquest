@@ -8,6 +8,7 @@
     "test": "pnpm --filter @tcc/shared test",
     "dev:server": "pnpm --filter @tcc/server dev",
     "dev:client": "pnpm --filter @tcc/client dev",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "postinstall": "pnpm --filter @tcc/shared run build"
   }
 }
