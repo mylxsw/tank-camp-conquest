@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { BRICK_HP, TILE_SIZE, type WallCell } from "@tcc/shared";
+import { PIXEL_KEYS } from "./PixelAtlas.js";
 
 export type MapStaticPayload = {
   tileSize: number;
@@ -11,22 +12,19 @@ export type MapStaticPayload = {
 
 export type WallPatch = { tileX: number; tileY: number; hp: number };
 
-/** Distinct terrain palette so brick ≠ steel ≠ water ≠ grass. */
-const COLOR_STEEL = 0xa0a8b0;
-const COLOR_BRICK = 0xc45c26;
-const COLOR_WATER = 0x2a6fbf;
-const COLOR_GRASS = 0x3aa84a;
+/** World positions where a wall lost HP (for hit FX). */
+export type WallHit = { x: number; y: number };
 
 function wallKey(tx: number, ty: number): string {
   return `${tx},${ty}`;
 }
 
-/** Draws map tiles; wall rects stay mutable so brick destruction can sync. */
+/** Draws map tiles with procedural pixel textures; walls stay mutable via wallPatch. */
 export class MapRenderer {
   private layer: Phaser.GameObjects.Container;
   private scene: Phaser.Scene;
   private tile: number;
-  private wallRects = new Map<string, Phaser.GameObjects.Rectangle>();
+  private wallSprites = new Map<string, Phaser.GameObjects.Image>();
   private wallMeta = new Map<string, { kind: "brick" | "steel"; hp: number }>();
 
   constructor(scene: Phaser.Scene, data: MapStaticPayload) {
@@ -34,38 +32,43 @@ export class MapRenderer {
     this.tile = data.tileSize || TILE_SIZE;
     this.layer = scene.add.container(0, 0);
     this.layer.setDepth(-10);
+    scene.cameras.main.setBackgroundColor(0x2a2420);
 
     for (const [tx, ty] of data.water) {
-      this.layer.add(
-        scene.add.rectangle(
-          tx * this.tile + this.tile / 2,
-          ty * this.tile + this.tile / 2,
-          this.tile,
-          this.tile,
-          COLOR_WATER,
-        ),
-      );
+      this.layer.add(this.makeTile(PIXEL_KEYS.water, tx, ty));
     }
     for (const [tx, ty] of data.grass) {
-      this.layer.add(
-        scene.add.rectangle(
-          tx * this.tile + this.tile / 2,
-          ty * this.tile + this.tile / 2,
-          this.tile,
-          this.tile,
-          COLOR_GRASS,
-        ),
-      );
+      this.layer.add(this.makeTile(PIXEL_KEYS.grass, tx, ty));
     }
     for (const w of data.walls) {
       this.upsertWall(w);
     }
   }
 
-  /** Apply server wall HP patches (hp<=0 removes the brick visual). */
-  applyWallPatches(patches: WallPatch[]): void {
+  private makeTile(key: string, tx: number, ty: number): Phaser.GameObjects.Image {
+    const img = this.scene.add.image(
+      tx * this.tile + this.tile / 2,
+      ty * this.tile + this.tile / 2,
+      key,
+    );
+    img.setDisplaySize(this.tile, this.tile);
+    return img;
+  }
+
+  /**
+   * Apply server wall HP patches (hp<=0 removes the brick visual).
+   * Returns centers of tiles whose HP decreased (for hit FX).
+   */
+  applyWallPatches(patches: WallPatch[]): WallHit[] {
+    const hits: WallHit[] = [];
     for (const p of patches) {
       const prev = this.wallMeta.get(wallKey(p.tileX, p.tileY));
+      if (prev && p.hp < prev.hp) {
+        hits.push({
+          x: p.tileX * this.tile + this.tile / 2,
+          y: p.tileY * this.tile + this.tile / 2,
+        });
+      }
       this.upsertWall({
         tileX: p.tileX,
         tileY: p.tileY,
@@ -73,44 +76,39 @@ export class MapRenderer {
         hp: p.hp,
       });
     }
+    return hits;
+  }
+
+  private brickTexture(hp: number): string {
+    return hp < BRICK_HP ? PIXEL_KEYS.brickDamaged : PIXEL_KEYS.brick;
   }
 
   private upsertWall(w: WallCell): void {
     const key = wallKey(w.tileX, w.tileY);
-    const existing = this.wallRects.get(key);
+    const existing = this.wallSprites.get(key);
     if (w.hp <= 0) {
       existing?.destroy();
-      this.wallRects.delete(key);
+      this.wallSprites.delete(key);
       this.wallMeta.delete(key);
       return;
     }
     const meta = this.wallMeta.get(key);
     const kind = meta?.kind ?? w.kind;
+    const tex = kind === "steel" ? PIXEL_KEYS.steel : this.brickTexture(w.hp);
     if (existing) {
-      const maxHp = kind === "steel" ? 999 : BRICK_HP;
-      existing.setAlpha(Math.max(0.35, Math.min(1, w.hp / Math.max(1, maxHp))));
+      if (existing.texture.key !== tex) existing.setTexture(tex);
       this.wallMeta.set(key, { kind, hp: w.hp });
       return;
     }
-    const color = kind === "steel" ? COLOR_STEEL : COLOR_BRICK;
-    const rect = this.scene.add.rectangle(
-      w.tileX * this.tile + this.tile / 2,
-      w.tileY * this.tile + this.tile / 2,
-      this.tile - 1,
-      this.tile - 1,
-      color,
-    );
-    if (kind === "steel") {
-      rect.setStrokeStyle(1, 0xffffff, 0.35);
-    }
-    this.layer.add(rect);
-    this.wallRects.set(key, rect);
+    const img = this.makeTile(tex, w.tileX, w.tileY);
+    this.layer.add(img);
+    this.wallSprites.set(key, img);
     this.wallMeta.set(key, { kind, hp: w.hp });
   }
 
   destroy(): void {
     this.layer.destroy(true);
-    this.wallRects.clear();
+    this.wallSprites.clear();
     this.wallMeta.clear();
   }
 }
