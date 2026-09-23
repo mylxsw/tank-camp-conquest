@@ -3,6 +3,7 @@ import { CAMP_SLOT_COUNT, TILE_SIZE, MAP_TILES } from "../constants.js";
 import { generateCampSlots } from "../map/campLayout.js";
 import { createInitialMap } from "../map/createInitialMap.js";
 import { Terrain } from "../map/terrain.js";
+import { buildCampWalls } from "../map/walls.js";
 
 describe("campLayout", () => {
   it("generates exactly 32 unique camp slots inside map bounds", () => {
@@ -32,5 +33,18 @@ describe("createInitialMap", () => {
     expect(map.neutralPoints.length).toBeGreaterThanOrEqual(1);
     expect(map.camps.every((c) => c.ownerPlayerId === null)).toBe(true);
     expect(map.camps.every((c) => c.coreHp === map.camps[0]!.coreHp)).toBe(true);
+  });
+});
+
+describe("buildCampWalls", () => {
+  it("places steel on the intended corners", () => {
+    const slots = generateCampSlots();
+    const walls = buildCampWalls(slots);
+    const wallsByKey = new Map(walls.map((wall) => [`${wall.tileX},${wall.tileY}`, wall]));
+    const firstSlot = slots[0]!;
+
+    expect(walls.some((wall) => wall.kind === "steel")).toBe(true);
+    expect(wallsByKey.get(`${firstSlot.tileX - 2},${firstSlot.tileY - 2}`)?.kind).toBe("steel");
+    expect(wallsByKey.get(`${firstSlot.tileX + 2},${firstSlot.tileY + 2}`)?.kind).toBe("steel");
   });
 });

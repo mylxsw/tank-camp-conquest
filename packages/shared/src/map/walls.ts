@@ -14,6 +14,8 @@ export function buildCampWalls(slots: CampSlot[]): WallCell[] {
   };
 
   for (const s of slots) {
+    add(s.tileX - 2, s.tileY - 2, "steel");
+    add(s.tileX + 2, s.tileY + 2, "steel");
     for (let dx = -2; dx <= 2; dx++) {
       for (let dy = -2; dy <= 2; dy++) {
         if (Math.abs(dx) !== 2 && Math.abs(dy) !== 2) continue;
@@ -22,8 +24,6 @@ export function buildCampWalls(slots: CampSlot[]): WallCell[] {
         add(s.tileX + dx, s.tileY + dy, "brick");
       }
     }
-    add(s.tileX - 2, s.tileY - 2, "steel");
-    add(s.tileX + 2, s.tileY + 2, "steel");
   }
   return walls;
 }
