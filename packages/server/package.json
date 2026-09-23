@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dev": "pnpm --dir ../shared run build && tsx watch src/index.ts",
+    "dev": "pnpm exec tsc -p ../shared/tsconfig.json && tsx watch src/index.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {
