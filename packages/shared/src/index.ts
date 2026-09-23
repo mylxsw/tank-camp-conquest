@@ -11,3 +11,6 @@ export * from "./sim/combat.js";
 export * from "./sim/resources.js";
 export * from "./sim/airdrop.js";
 export * from "./sim/softPressure.js";
+export * from "./sim/joinAssign.js";
+export * from "./sim/tick.js";
+
