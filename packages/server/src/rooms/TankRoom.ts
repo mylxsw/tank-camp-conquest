@@ -1,4 +1,4 @@
-import { Room, Client } from "colyseus";
+import Colyseus from "colyseus";
 import {
   AI_FILL_TARGET_PLAYERS,
   CAMP_SLOT_COUNT,
@@ -16,7 +16,7 @@ import { idleInput, normalizeInput } from "../systems/applyInput.js";
 
 export type JoinOptions = { nickname?: string };
 
-export class TankRoom extends Room<TankRoomState> {
+export class TankRoom extends Colyseus.Room<TankRoomState> {
   maxClients = CAMP_SLOT_COUNT;
   private sim!: RoomSimState;
   private inputs: Record<string, PlayerInput> = {};
@@ -32,7 +32,7 @@ export class TankRoom extends Room<TankRoomState> {
     });
   }
 
-  onJoin(client: Client, options: JoinOptions): void {
+  onJoin(client: Colyseus.Client, options: JoinOptions): void {
     const nickname = (options.nickname ?? "Guest").toString().slice(0, 16);
     const result = assignCampForJoin(
       this.sim,
@@ -53,7 +53,7 @@ export class TankRoom extends Room<TankRoomState> {
     this.fillAiIfNeeded();
   }
 
-  onLeave(client: Client): void {
+  onLeave(client: Colyseus.Client): void {
     const p = this.sim.players[client.sessionId];
     if (p && !p.eliminated) {
       for (const campId of [...p.campIds]) {
