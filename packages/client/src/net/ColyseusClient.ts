@@ -25,12 +25,19 @@ export async function resolveColyseusUrl(): Promise<string> {
   if (baked && String(baked).trim()) return String(baked).trim();
 
   if (typeof window !== "undefined" && window.location?.host) {
+    const { hostname, port, protocol } = window.location;
+    // Vite/dev without nginx: talk to Colyseus directly (proxy also exists as backup).
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      if (port === "5173" || port === "4173" || port === "") {
+        return "ws://127.0.0.1:2567";
+      }
+    }
     const path = (cfg.colyseusPath || "/colyseus").replace(/\/$/, "");
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const proto = protocol === "https:" ? "wss:" : "ws:";
     return `${proto}//${window.location.host}${path}`;
   }
 
-  return "ws://localhost:2567";
+  return "ws://127.0.0.1:2567";
 }
 
 export async function joinTankRoom(nickname: string): Promise<Room> {
