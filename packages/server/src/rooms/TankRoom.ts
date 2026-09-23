@@ -1,7 +1,6 @@
 import { Room, Client } from "colyseus";
 import {
   AI_FILL_TARGET_PLAYERS,
-  AmmoType,
   CAMP_SLOT_COUNT,
   TICK_DT,
   TICK_HZ,
@@ -13,34 +12,7 @@ import {
 } from "@tcc/shared";
 import { CampSchema, PlayerSchema, TankRoomState, TankSchema } from "./schema.js";
 
-/** Inline until Task 9 extracts applyInput.ts */
-function idleInput(): PlayerInput {
-  return {
-    up: false,
-    down: false,
-    left: false,
-    right: false,
-    fire: false,
-    selectAmmo: null,
-  };
-}
-
-function normalizeInput(message: Partial<PlayerInput>): PlayerInput {
-  const select =
-    message.selectAmmo === AmmoType.Normal ||
-    message.selectAmmo === AmmoType.Siege ||
-    message.selectAmmo === AmmoType.HE
-      ? message.selectAmmo
-      : null;
-  return {
-    up: !!message.up,
-    down: !!message.down,
-    left: !!message.left,
-    right: !!message.right,
-    fire: !!message.fire,
-    selectAmmo: select,
-  };
-}
+import { idleInput, normalizeInput } from "../systems/applyInput.js";
 
 export type JoinOptions = { nickname?: string };
 
