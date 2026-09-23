@@ -9,3 +9,6 @@ coverage
 
 # TypeScript build metadata
 *.tsbuildinfo
+
+# Local playtest captures (do not commit)
+.superpowers/screenshots/

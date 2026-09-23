@@ -26,6 +26,25 @@ function steerToward(x: number, y: number, tx: number, ty: number): PlayerInput 
   };
 }
 
+/** Face cardinal toward target; fire if roughly aligned on an axis. */
+function engagePoint(
+  x: number,
+  y: number,
+  tx: number,
+  ty: number,
+  selectAmmo: AmmoType | null,
+  fireChance: number,
+  rand: () => number,
+): PlayerInput {
+  const input = steerToward(x, y, tx, ty);
+  input.selectAmmo = selectAmmo;
+  const aligned =
+    (Math.abs(tx - x) < 18 && Math.abs(ty - y) > 8) ||
+    (Math.abs(ty - y) < 18 && Math.abs(tx - x) > 8);
+  input.fire = aligned || rand() < fireChance;
+  return input;
+}
+
 export function decideAiInput(
   state: RoomSimState,
   playerId: string,
@@ -38,6 +57,22 @@ export function decideAiInput(
   }
   const home = state.camps[p.campIds[0]!];
   const roll = rand();
+
+  // Nearby enemy tank: switch to normal (or keep siege if empty normals) and shoot.
+  let nearestTank: { x: number; y: number } | null = null;
+  let bestTank = 220 * 220;
+  for (const other of Object.values(state.players)) {
+    if (other.playerId === playerId || other.eliminated || !other.tank.alive) continue;
+    const d = dist2(p.tank.x, p.tank.y, other.tank.x, other.tank.y);
+    if (d < bestTank) {
+      bestTank = d;
+      nearestTank = { x: other.tank.x, y: other.tank.y };
+    }
+  }
+  if (nearestTank && bestTank < 200 * 200) {
+    const ammo = p.tank.ammoNormal > 0 ? AmmoType.Normal : p.tank.ammoSiege > 0 ? AmmoType.Siege : null;
+    return engagePoint(p.tank.x, p.tank.y, nearestTank.x, nearestTank.y, ammo, 0.35, rand);
+  }
 
   // Siege ammo and near an enemy core: switch to siege and fire.
   if (p.tank.ammoSiege > 0) {
@@ -52,19 +87,19 @@ export function decideAiInput(
       }
     }
     if (nearestEnemy && best < 120 * 120) {
-      const input = steerToward(p.tank.x, p.tank.y, nearestEnemy.x, nearestEnemy.y);
-      input.selectAmmo = AmmoType.Siege;
-      input.fire = true;
-      return input;
+      return engagePoint(
+        p.tank.x, p.tank.y, nearestEnemy.x, nearestEnemy.y, AmmoType.Siege, 0.5, rand,
+      );
     }
   }
 
-  // ~70%: patrol near home camp
+  // ~70%: patrol near home camp (explicitly return to Normal so siege doesn't stick)
   if (roll < 0.7 && home) {
     const tx = home.worldX + (rand() - 0.5) * 400;
     const ty = home.worldY + (rand() - 0.5) * 400;
     const input = steerToward(p.tank.x, p.tank.y, tx, ty);
-    input.fire = rand() < 0.05;
+    input.selectAmmo = AmmoType.Normal;
+    input.fire = rand() < 0.08;
     return input;
   }
 
@@ -79,7 +114,9 @@ export function decideAiInput(
         bestN = n;
       }
     }
-    return steerToward(p.tank.x, p.tank.y, bestN.x, bestN.y);
+    const input = steerToward(p.tank.x, p.tank.y, bestN.x, bestN.y);
+    input.selectAmmo = AmmoType.Normal;
+    return input;
   }
 
   // ~10%: approach nearest enemy camp
@@ -97,6 +134,7 @@ export function decideAiInput(
     return idle();
   }
   const input = steerToward(p.tank.x, p.tank.y, target.worldX, target.worldY);
-  input.fire = rand() < 0.1;
+  input.selectAmmo = p.tank.ammoSiege > 0 ? AmmoType.Siege : AmmoType.Normal;
+  input.fire = rand() < 0.15;
   return input;
 }

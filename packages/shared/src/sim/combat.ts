@@ -66,15 +66,28 @@ export function applyTankMovement(
   p.tank.y = ny;
 }
 
+function resolveFireAmmo(t: { selectedAmmo: AmmoType; ammoNormal: number; ammoSiege: number; ammoHE: number }): AmmoType | null {
+  const order: AmmoType[] = [t.selectedAmmo, AmmoType.Normal, AmmoType.Siege, AmmoType.HE];
+  const seen = new Set<AmmoType>();
+  for (const ammo of order) {
+    if (seen.has(ammo)) continue;
+    seen.add(ammo);
+    if (ammo === AmmoType.Normal && t.ammoNormal > 0) return AmmoType.Normal;
+    if (ammo === AmmoType.Siege && t.ammoSiege > 0) return AmmoType.Siege;
+    if (ammo === AmmoType.HE && t.ammoHE > 0) return AmmoType.HE;
+  }
+  return null;
+}
+
 export function tryFire(state: RoomSimState, playerId: string, now: number): boolean {
   const p = state.players[playerId];
   if (!p || p.eliminated || !p.tank.alive) return false;
   const t = p.tank;
   if (t.fireCooldown > 0) return false;
-  const ammo = t.selectedAmmo;
-  if (ammo === AmmoType.Normal && t.ammoNormal <= 0) return false;
-  if (ammo === AmmoType.Siege && t.ammoSiege <= 0) return false;
-  if (ammo === AmmoType.HE && t.ammoHE <= 0) return false;
+  const ammo = resolveFireAmmo(t);
+  if (ammo === null) return false;
+  // Keep selection honest when we had to fall back (empty selected clip).
+  t.selectedAmmo = ammo;
   if (ammo === AmmoType.Normal) t.ammoNormal -= 1;
   if (ammo === AmmoType.Siege) t.ammoSiege -= 1;
   if (ammo === AmmoType.HE) t.ammoHE -= 1;
@@ -138,6 +151,58 @@ function damageCore(
   return [];
 }
 
+function collideProjectile(
+  state: RoomSimState,
+  proj: { x: number; y: number; ammo: AmmoType; ownerPlayerId: string; alive: boolean },
+  now: number,
+  events: OwnershipEvent[],
+): void {
+  if (proj.x < 0 || proj.y < 0 || proj.x > MAP_WORLD_SIZE || proj.y > MAP_WORLD_SIZE) {
+    proj.alive = false;
+    return;
+  }
+
+  // Cores before walls: camp rings used to eat shots aimed at the HQ.
+  // Skip own core so spawn-center shots are not instantly swallowed.
+  for (const camp of state.camps) {
+    if (camp.ownerPlayerId === proj.ownerPlayerId) continue;
+    const dx = proj.x - camp.worldX;
+    const dy = proj.y - camp.worldY;
+    if (dx * dx + dy * dy <= CORE_HIT_RADIUS * CORE_HIT_RADIUS) {
+      const dmg = proj.ammo === AmmoType.Siege ? SIEGE_DAMAGE_CORE : Math.floor(NORMAL_DAMAGE_TANK / 5);
+      events.push(...damageCore(state, camp.campId, dmg, proj.ownerPlayerId, now));
+      proj.alive = false;
+      return;
+    }
+  }
+
+  // Tanks before walls so edge grazing near bricks still registers fair hits.
+  for (const other of Object.values(state.players)) {
+    if (!other.tank.alive || other.playerId === proj.ownerPlayerId) continue;
+    const dx = proj.x - other.tank.x;
+    const dy = proj.y - other.tank.y;
+    if (dx * dx + dy * dy <= (TANK_RADIUS + PROJECTILE_RADIUS) ** 2) {
+      const dmg = proj.ammo === AmmoType.Siege ? SIEGE_DAMAGE_TANK : NORMAL_DAMAGE_TANK;
+      damageTank(state, other.playerId, dmg, proj.ownerPlayerId, now);
+      proj.alive = false;
+      return;
+    }
+  }
+
+  const wall = state.walls.find(
+    (w) => w.hp > 0 && circleHitsTile(proj.x, proj.y, PROJECTILE_RADIUS, w.tileX, w.tileY),
+  );
+  if (wall) {
+    if (wall.kind === "steel" && STEEL_INDESTRUCTIBLE) {
+      proj.alive = false;
+      return;
+    }
+    const brickDmg = proj.ammo === AmmoType.HE ? HE_DAMAGE_BRICK : NORMAL_DAMAGE_BRICK;
+    wall.hp -= brickDmg;
+    proj.alive = false;
+  }
+}
+
 export function advanceProjectiles(
   state: RoomSimState,
   dt: number,
@@ -151,52 +216,15 @@ export function advanceProjectiles(
     }
   }
 
+  // Substeps keep 20Hz motion from tunneling past tanks/cores (~16px/tick at full speed).
+  const SUBSTEPS = 2;
+  const step = dt / SUBSTEPS;
   for (const proj of state.projectiles) {
     if (!proj.alive) continue;
-    proj.x += proj.vx * dt;
-    proj.y += proj.vy * dt;
-    if (proj.x < 0 || proj.y < 0 || proj.x > MAP_WORLD_SIZE || proj.y > MAP_WORLD_SIZE) {
-      proj.alive = false;
-      continue;
-    }
-
-    // Cores before walls: camp rings used to eat shots aimed at the HQ.
-    for (const camp of state.camps) {
-      const dx = proj.x - camp.worldX;
-      const dy = proj.y - camp.worldY;
-      if (dx * dx + dy * dy <= CORE_HIT_RADIUS * CORE_HIT_RADIUS) {
-        const dmg = proj.ammo === AmmoType.Siege ? SIEGE_DAMAGE_CORE : Math.floor(NORMAL_DAMAGE_TANK / 5);
-        events.push(...damageCore(state, camp.campId, dmg, proj.ownerPlayerId, now));
-        proj.alive = false;
-        break;
-      }
-    }
-    if (!proj.alive) continue;
-
-    const wall = state.walls.find(
-      (w) => w.hp > 0 && circleHitsTile(proj.x, proj.y, PROJECTILE_RADIUS, w.tileX, w.tileY),
-    );
-    if (wall) {
-      if (wall.kind === "steel" && STEEL_INDESTRUCTIBLE) {
-        proj.alive = false;
-        continue;
-      }
-      const brickDmg = proj.ammo === AmmoType.HE ? HE_DAMAGE_BRICK : NORMAL_DAMAGE_BRICK;
-      wall.hp -= brickDmg;
-      proj.alive = false;
-      continue;
-    }
-
-    for (const other of Object.values(state.players)) {
-      if (!other.tank.alive || other.playerId === proj.ownerPlayerId) continue;
-      const dx = proj.x - other.tank.x;
-      const dy = proj.y - other.tank.y;
-      if (dx * dx + dy * dy <= (TANK_RADIUS + PROJECTILE_RADIUS) ** 2) {
-        const dmg = proj.ammo === AmmoType.Siege ? SIEGE_DAMAGE_TANK : NORMAL_DAMAGE_TANK;
-        damageTank(state, other.playerId, dmg, proj.ownerPlayerId, now);
-        proj.alive = false;
-        break;
-      }
+    for (let s = 0; s < SUBSTEPS && proj.alive; s++) {
+      proj.x += proj.vx * step;
+      proj.y += proj.vy * step;
+      collideProjectile(state, proj, now, events);
     }
   }
 

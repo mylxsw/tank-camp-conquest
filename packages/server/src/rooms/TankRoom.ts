@@ -37,7 +37,6 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
   private inputs: Record<string, PlayerInput> = {};
   private rand = Math.random;
   private aiAccMs = 0;
-  private visorAccMs = 0;
   private mapStatic!: MapStaticMessage;
 
   onCreate(): void {
@@ -162,12 +161,9 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
       this.broadcast("wallPatch", { walls: wallPatches });
     }
 
-    this.visorAccMs += 1000 / TICK_HZ;
-    if (this.visorAccMs >= 100) {
-      this.visorAccMs = 0;
-      for (const client of this.clients) {
-        client.send("visor", computeVisibility(this.sim, client.sessionId));
-      }
+    // Every tick (20Hz): projectiles + nearby tanks for client extrapolation.
+    for (const client of this.clients) {
+      client.send("visor", computeVisibility(this.sim, client.sessionId));
     }
   }
 

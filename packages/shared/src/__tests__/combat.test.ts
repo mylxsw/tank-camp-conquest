@@ -131,4 +131,48 @@ describe("combat", () => {
     expect(state.terrain[terrainIndex(afterTileX, afterTileY, MAP_TILES)]).not.toBe(Terrain.Water);
     expect(state.players["A"]!.tank.x).toBeGreaterThanOrEqual(beforeX);
   });
+
+
+
+  it("does not eat own-core spawn shots", () => {
+    const state = { ...createInitialMap(11), players: {} } as RoomSimState;
+    const camp = state.camps[0]!;
+    state.players["A"] = pl("A", [0], {
+      x: camp.worldX, y: camp.worldY, dir: 1,
+      selectedAmmo: AmmoType.Normal, ammoNormal: 5,
+    });
+    camp.ownerPlayerId = "A";
+    expect(tryFire(state, "A", 0)).toBe(true);
+    advanceProjectiles(state, 0.05, 0.05);
+    expect(state.projectiles.length).toBe(1);
+    expect(state.projectiles[0]!.alive).toBe(true);
+  });
+
+  it("falls back to normal ammo when selected siege clip is empty", () => {
+    const state = { ...createInitialMap(9), players: {} } as RoomSimState;
+    state.players["A"] = pl("A", [0], {
+      x: 100, y: 100, dir: 1,
+      selectedAmmo: AmmoType.Siege, ammoSiege: 0, ammoNormal: 5,
+    });
+    expect(tryFire(state, "A", 0)).toBe(true);
+    expect(state.players["A"]!.tank.selectedAmmo).toBe(AmmoType.Normal);
+    expect(state.players["A"]!.tank.ammoNormal).toBe(4);
+    expect(state.projectiles[0]!.ammo).toBe(AmmoType.Normal);
+  });
+
+  it("hits a tank that overlaps a brick edge before the wall eats the shell", () => {
+    const state = { ...createInitialMap(10), players: {} } as RoomSimState;
+    // Place a brick and an enemy tank on overlapping hit space.
+    state.walls = [{ tileX: 5, tileY: 5, kind: "brick", hp: 2 }];
+    const wallCx = 5 * TILE_SIZE + TILE_SIZE / 2;
+    const wallCy = 5 * TILE_SIZE + TILE_SIZE / 2;
+    state.players["A"] = pl("A", [0], {
+      x: wallCx - 60, y: wallCy, dir: 1, selectedAmmo: AmmoType.Normal, ammoNormal: 5,
+    });
+    state.players["B"] = pl("B", [1], { x: wallCx - 8, y: wallCy, hp: TANK_MAX_HP });
+    tryFire(state, "A", 0);
+    for (let i = 0; i < 30; i++) advanceProjectiles(state, 0.02, i * 0.02);
+    expect(state.players["B"]!.tank.hp).toBeLessThan(TANK_MAX_HP);
+  });
+
 });

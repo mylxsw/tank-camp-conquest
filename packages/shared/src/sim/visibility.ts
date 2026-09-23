@@ -5,7 +5,7 @@ export interface VisibleSnapshot {
   playerIds: string[];
   /** @deprecated prefer `projectiles` for client rendering */
   projectileIds: number[];
-  projectiles: Array<{ id: number; x: number; y: number }>;
+  projectiles: Array<{ id: number; x: number; y: number; vx: number; vy: number; ammo: number }>;
   airdropIds: number[];
   neutrals: Array<{ id: number; x: number; y: number; kind: number }>;
   airdrops: Array<{ id: number; x: number; y: number; claimed: boolean; landed: boolean }>;
@@ -29,7 +29,7 @@ export function computeVisibility(
   }
   const projectiles = state.projectiles
     .filter((pr) => dist2(ox, oy, pr.x, pr.y) <= r2)
-    .map((pr) => ({ id: pr.id, x: pr.x, y: pr.y }));
+    .map((pr) => ({ id: pr.id, x: pr.x, y: pr.y, vx: pr.vx, vy: pr.vy, ammo: pr.ammo }));
   const projectileIds = projectiles.map((pr) => pr.id);
   const airdropIds = state.airdrops
     .filter((a) => !a.claimed && dist2(ox, oy, a.x, a.y) <= r2)

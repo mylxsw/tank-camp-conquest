@@ -50,7 +50,9 @@ describe("computeVisibility", () => {
       alive: true,
     });
     const snap = computeVisibility(state, "self", VISIBILITY_RADIUS);
-    expect(snap.projectiles).toEqual([{ id: 42, x: self.tank.x + 10, y: self.tank.y }]);
+    expect(snap.projectiles).toEqual([{
+      id: 42, x: self.tank.x + 10, y: self.tank.y, vx: 1, vy: 0, ammo: AmmoType.Normal,
+    }]);
     expect(snap.projectileIds).toEqual([42]);
   });
 });

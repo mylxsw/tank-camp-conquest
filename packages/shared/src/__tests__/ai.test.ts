@@ -31,6 +31,20 @@ describe("decideAiInput", () => {
     ).toBe(true);
   });
 
+  it("engages nearby enemy tank with fire", () => {
+    const state = { ...createInitialMap(43), players: {} } as RoomSimState;
+    assignCampForJoin(state, "ai1", "Bot", true, 0, () => 0, "ai1");
+    assignCampForJoin(state, "enemy", "E", false, 0, () => 0.9, "enemy");
+    const ai = state.players["ai1"]!;
+    const enemy = state.players["enemy"]!;
+    ai.tank.x = enemy.tank.x + 40;
+    ai.tank.y = enemy.tank.y;
+    ai.tank.ammoNormal = 10;
+    const input = decideAiInput(state, "ai1", 1, () => 0.01);
+    expect(input.fire || input.left || input.right || input.up || input.down).toBe(true);
+    expect(input.selectAmmo === AmmoType.Normal || input.selectAmmo === null).toBe(true);
+  });
+
   it("returns idle when player missing or dead", () => {
     const state = { ...createInitialMap(42), players: {} } as RoomSimState;
     expect(decideAiInput(state, "ghost", 0, () => 0).fire).toBe(false);

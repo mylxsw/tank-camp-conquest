@@ -45,7 +45,7 @@ export class Hud {
       .text(
         12,
         scene.scale.height - 52,
-        "图例: 绿己方坦克 | 红敌方 | 靶心=核心 | 橙砖墙 | 银灰钢墙 | 蓝水 | 绿草",
+        "图例: 绿己 | 红敌 | 核心 | 黄标=中立补给 | 蓝=空投 | 橙砖 | 钢墙 | 水 | 草",
         { fontSize: "12px", color: "#eeeeee", backgroundColor: "#00000088" },
       )
       .setScrollFactor(0)

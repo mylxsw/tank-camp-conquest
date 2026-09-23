@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { Room } from "colyseus.js";
 import {
   MAP_WORLD_SIZE,
+  directionFromInput,
   type DeathStats,
   type PlayerInput,
   type VisibleSnapshot,
@@ -13,11 +14,12 @@ import { spawnHit, spawnMuzzle } from "../render/FxSprites.js";
 import { MapRenderer, type MapStaticPayload, type WallPatch } from "../render/MapRenderer.js";
 import { ProjectileRenderer } from "../render/ProjectileRenderer.js";
 import { TankSprite } from "../render/TankSprite.js";
+import { WorldMarkers } from "../render/WorldMarkers.js";
 import { Hud } from "../ui/Hud.js";
 import { Minimap } from "../ui/Minimap.js";
 
-type WorldNeutral = { x: number; y: number };
-type WorldAirdrop = { x: number; y: number; claimed: boolean };
+type WorldNeutral = { id?: number; x: number; y: number; kind?: number };
+type WorldAirdrop = { id?: number; x: number; y: number; claimed: boolean; landed?: boolean };
 
 export class GameScene extends Phaser.Scene {
   private room!: Room;
@@ -25,6 +27,7 @@ export class GameScene extends Phaser.Scene {
   private camps!: CampRenderer;
   private mapRenderer: MapRenderer | null = null;
   private projectiles!: ProjectileRenderer;
+  private markers!: WorldMarkers;
   private selfId = "";
   private inputManager!: InputManager;
   private hud!: Hud;
@@ -34,6 +37,7 @@ export class GameScene extends Phaser.Scene {
   private visor: VisibleSnapshot | null = null;
   private disconnected = false;
   private wasFire = false;
+  private lastSample: PlayerInput | null = null;
 
   constructor() {
     super("GameScene");
@@ -42,6 +46,7 @@ export class GameScene extends Phaser.Scene {
   async create(data: { nickname: string }): Promise<void> {
     this.camps = new CampRenderer(this);
     this.projectiles = new ProjectileRenderer(this);
+    this.markers = new WorldMarkers(this);
     this.hud = new Hud(this);
     this.minimap = new Minimap(this);
     this.cameras.main.setBounds(0, 0, MAP_WORLD_SIZE, MAP_WORLD_SIZE);
@@ -58,7 +63,7 @@ export class GameScene extends Phaser.Scene {
 
     this.room.state.players.onAdd((player: any, key: string) => {
       const color = key === this.selfId ? 0x44dd88 : 0xdd5555;
-      this.tanks.set(key, new TankSprite(this, player, color));
+      this.tanks.set(key, new TankSprite(this, player, color, { isSelf: key === this.selfId }));
     });
     this.room.state.players.onRemove((_p: any, key: string) => {
       this.tanks.get(key)?.destroy();
@@ -87,6 +92,7 @@ export class GameScene extends Phaser.Scene {
       this.airdrops = msg.airdrops ?? [];
       const removed = this.projectiles?.syncFromMessage(msg.projectiles ?? []) ?? [];
       for (const r of removed) spawnHit(this, r.x, r.y);
+      this.markers?.sync({ neutrals: this.neutrals, airdrops: this.airdrops });
     });
     // Legacy fallback if server still emits worldMeta (minimap neutrals/airdrops).
     this.room.onMessage(
@@ -95,6 +101,7 @@ export class GameScene extends Phaser.Scene {
         if (this.visor) return;
         this.neutrals = msg.neutrals ?? [];
         this.airdrops = msg.airdrops ?? [];
+        this.markers?.sync({ neutrals: this.neutrals, airdrops: this.airdrops });
       },
     );
 
@@ -114,11 +121,13 @@ export class GameScene extends Phaser.Scene {
       this.inputManager?.destroy();
       this.mapRenderer?.destroy();
       this.mapRenderer = null;
+      this.markers?.destroy();
     });
   }
 
-  update(): void {
+  update(_time: number, delta: number): void {
     if (!this.room || this.disconnected) return;
+    const dt = Math.min(0.05, delta / 1000);
     if (this.inputManager) {
       const sample = this.inputManager.sample();
       const payload: PlayerInput = {
@@ -129,6 +138,7 @@ export class GameScene extends Phaser.Scene {
         fire: sample.fire,
         selectAmmo: sample.selectAmmo,
       };
+      this.lastSample = payload;
       this.room.send("input", payload);
       if (sample.fire && !this.wasFire) {
         const self = this.tanks.get(this.selfId);
@@ -137,16 +147,23 @@ export class GameScene extends Phaser.Scene {
       this.wasFire = sample.fire;
     }
     const visibleIds = this.visor ? new Set(this.visor.playerIds) : null;
+    const predDir = this.lastSample ? directionFromInput(this.lastSample) : null;
     for (const [id, sprite] of this.tanks) {
       const p = this.room.state.players.get(id);
       if (p) sprite.sync(p);
-      sprite.updateLerp();
+      if (id === this.selfId) {
+        // Predict only — includes soft authority rubber-band (skip lerp fight).
+        sprite.predictMove(predDir, dt);
+      } else {
+        sprite.updateLerp(dt);
+      }
       const show = id === this.selfId || visibleIds === null || visibleIds.has(id);
       sprite.setVisible(show);
       if (id === this.selfId) {
         this.cameras.main.centerOn(sprite.x, sprite.y);
       }
     }
+    this.projectiles?.update();
     this.camps?.sync(this.room.state.camps, this.selfId);
     this.syncHudAndMinimap();
   }

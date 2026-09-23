@@ -1,10 +1,23 @@
 import Phaser from "phaser";
+import { TANK_SPEED } from "@tcc/shared";
 import { PIXEL_KEYS } from "./PixelAtlas.js";
 
 const BARREL_LEN = 22;
 /** Snap when teleport/respawn distance exceeds this. */
 const SNAP_DIST = 80;
-const LERP = 0.28;
+/** Other tanks: smooth catch-up toward 20Hz authority. */
+const LERP_OTHER = 0.32;
+/** Self: slightly snappier so authority corrections don't lag hard. */
+const LERP_SELF = 0.45;
+/** Soft local prediction scale (under-drive so we don't overshoot walls). */
+const PREDICT_SCALE = 0.85;
+
+const DIR_VEC: Record<number, { x: number; y: number }> = {
+  0: { x: 0, y: -1 },
+  1: { x: 1, y: 0 },
+  2: { x: 0, y: 1 },
+  3: { x: -1, y: 0 },
+};
 
 export class TankSprite {
   readonly body: Phaser.GameObjects.Image;
@@ -15,12 +28,15 @@ export class TankSprite {
   private displayX: number;
   private displayY: number;
   private _dir = 0;
+  private isSelf = false;
 
   constructor(
     scene: Phaser.Scene,
     player: { nickname: string; tank: { x: number; y: number; dir?: number } },
     color: number,
+    opts?: { isSelf?: boolean },
   ) {
+    this.isSelf = !!opts?.isSelf;
     this.targetX = player.tank.x;
     this.targetY = player.tank.y;
     this.displayX = player.tank.x;
@@ -68,10 +84,45 @@ export class TankSprite {
     this.place();
   }
 
+  /**
+   * Weak local prediction for the local tank: nudge display along held cardinal
+   * while still reconciling to server target. Stage A — no full physics clone.
+   */
+  predictMove(dir: number | null, dt: number): void {
+    if (!this.isSelf) return;
+    if (dir !== null) {
+      this._dir = dir;
+      const v = DIR_VEC[dir];
+      if (v) {
+        const step = TANK_SPEED * PREDICT_SCALE * dt;
+        this.displayX += v.x * step;
+        this.displayY += v.y * step;
+      }
+    }
+    // Soft authority rubber-band (always), stronger when idle so we settle.
+    const correct = dir === null ? 0.35 : 0.12;
+    this.displayX += (this.targetX - this.displayX) * correct;
+    this.displayY += (this.targetY - this.displayY) * correct;
+    const dx = this.displayX - this.targetX;
+    const dy = this.displayY - this.targetY;
+    const maxLead = 48;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > maxLead * maxLead) {
+      const s = maxLead / Math.sqrt(d2);
+      this.displayX = this.targetX + dx * s;
+      this.displayY = this.targetY + dy * s;
+    }
+    this.applyDirVisual();
+    this.place();
+  }
+
   /** Call each frame to smooth 20Hz state updates. */
-  updateLerp(): void {
-    this.displayX += (this.targetX - this.displayX) * LERP;
-    this.displayY += (this.targetY - this.displayY) * LERP;
+  updateLerp(dt: number): void {
+    const rate = this.isSelf ? LERP_SELF : LERP_OTHER;
+    // Frame-rate independent exponential blend toward authority.
+    const a = 1 - Math.exp(-rate * 60 * dt);
+    this.displayX += (this.targetX - this.displayX) * a;
+    this.displayY += (this.targetY - this.displayY) * a;
     this.place();
   }
 
