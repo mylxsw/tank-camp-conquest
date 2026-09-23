@@ -3,7 +3,9 @@ import type { RoomSimState } from "../types.js";
 
 export interface VisibleSnapshot {
   playerIds: string[];
+  /** @deprecated prefer `projectiles` for client rendering */
   projectileIds: number[];
+  projectiles: Array<{ id: number; x: number; y: number }>;
   airdropIds: number[];
   neutrals: Array<{ id: number; x: number; y: number; kind: number }>;
   airdrops: Array<{ id: number; x: number; y: number; claimed: boolean; landed: boolean }>;
@@ -25,15 +27,17 @@ export function computeVisibility(
       playerIds.push(p.playerId);
     }
   }
-  const projectileIds = state.projectiles
+  const projectiles = state.projectiles
     .filter((pr) => dist2(ox, oy, pr.x, pr.y) <= r2)
-    .map((pr) => pr.id);
+    .map((pr) => ({ id: pr.id, x: pr.x, y: pr.y }));
+  const projectileIds = projectiles.map((pr) => pr.id);
   const airdropIds = state.airdrops
     .filter((a) => !a.claimed && dist2(ox, oy, a.x, a.y) <= r2)
     .map((a) => a.id);
   return {
     playerIds,
     projectileIds,
+    projectiles,
     airdropIds,
     neutrals: state.neutralPoints.map((n) => ({ id: n.id, x: n.x, y: n.y, kind: n.kind })),
     airdrops: state.airdrops.map((a) => ({

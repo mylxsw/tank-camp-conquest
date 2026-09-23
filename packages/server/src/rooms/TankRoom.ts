@@ -2,13 +2,18 @@ import Colyseus from "colyseus";
 import {
   AI_FILL_TARGET_PLAYERS,
   CAMP_SLOT_COUNT,
+  MAP_TILES,
+  TILE_SIZE,
   TICK_DT,
   TICK_HZ,
+  Terrain,
   assignCampForJoin,
   createInitialMap,
   simulateTick,
+  terrainIndex,
   type PlayerInput,
   type RoomSimState,
+  type WallCell,
 } from "@tcc/shared";
 import { CampSchema, PlayerSchema, TankRoomState, TankSchema } from "./schema.js";
 
@@ -18,6 +23,14 @@ import { computeVisibility } from "../systems/visibility.js";
 
 export type JoinOptions = { nickname?: string };
 
+export type MapStaticMessage = {
+  tileSize: number;
+  mapTiles: number;
+  walls: WallCell[];
+  water: Array<[number, number]>;
+  grass: Array<[number, number]>;
+};
+
 export class TankRoom extends Colyseus.Room<TankRoomState> {
   maxClients = CAMP_SLOT_COUNT;
   private sim!: RoomSimState;
@@ -25,19 +38,27 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
   private rand = Math.random;
   private aiAccMs = 0;
   private visorAccMs = 0;
+  private mapStatic!: MapStaticMessage;
 
   onCreate(): void {
     this.setState(new TankRoomState());
     this.sim = { ...createInitialMap(Date.now() % 1_000_000), players: {} } as RoomSimState;
+    this.mapStatic = this.buildMapStatic();
     this.syncCamps();
     this.setSimulationInterval((_delta) => this.tick(), 1000 / TICK_HZ);
     this.onMessage("input", (client, message: Partial<PlayerInput>) => {
-      this.inputs[client.sessionId] = normalizeInput(message);
+      const prev = this.inputs[client.sessionId];
+      const next = normalizeInput(message);
+      if (next.selectAmmo == null && prev?.selectAmmo != null) {
+        next.selectAmmo = prev.selectAmmo;
+      }
+      this.inputs[client.sessionId] = next;
     });
   }
 
   onJoin(client: Colyseus.Client, options: JoinOptions): void {
     const nickname = (options.nickname ?? "Guest").toString().slice(0, 16);
+    const beforeIds = new Set(Object.keys(this.sim.players));
     const result = assignCampForJoin(
       this.sim,
       client.sessionId,
@@ -51,10 +72,18 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
       client.leave(4000);
       return;
     }
+    // Reclaim may delete an AI from sim — drop its schema row + input.
+    for (const id of beforeIds) {
+      if (!this.sim.players[id]) {
+        this.state.players.delete(id);
+        delete this.inputs[id];
+      }
+    }
     this.inputs[client.sessionId] = idleInput();
     this.syncPlayer(client.sessionId);
     this.syncCamps();
     this.fillAiIfNeeded();
+    client.send("mapStatic", this.mapStatic);
   }
 
   onLeave(client: Colyseus.Client): void {
@@ -95,9 +124,10 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
     for (const ev of events) {
       this.broadcast("ownership", ev);
       if (ev.type === "eliminate" && ev.eliminatedPlayerId) {
-        const victim = this.sim.players[ev.eliminatedPlayerId];
+        const victimId = ev.eliminatedPlayerId;
+        const victim = this.sim.players[victimId];
         this.broadcast("eliminated", {
-          playerId: ev.eliminatedPlayerId,
+          playerId: victimId,
           stats: victim
             ? {
                 survivedMs: Math.floor((this.sim.time - victim.joinedAt) * 1000),
@@ -109,6 +139,8 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
               }
             : null,
         });
+        this.state.players.delete(victimId);
+        delete this.inputs[victimId];
       }
     }
     this.visorAccMs += 1000 / TICK_HZ;
@@ -130,6 +162,10 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
   private syncPlayer(id: string): void {
     const p = this.sim.players[id];
     if (!p) {
+      this.state.players.delete(id);
+      return;
+    }
+    if (p.eliminated) {
       this.state.players.delete(id);
       return;
     }
@@ -190,5 +226,24 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
       guard += 1;
     }
     this.syncCamps();
+  }
+
+  private buildMapStatic(): MapStaticMessage {
+    const water: Array<[number, number]> = [];
+    const grass: Array<[number, number]> = [];
+    for (let ty = 0; ty < MAP_TILES; ty++) {
+      for (let tx = 0; tx < MAP_TILES; tx++) {
+        const t = this.sim.terrain[terrainIndex(tx, ty, MAP_TILES)]!;
+        if (t === Terrain.Water) water.push([tx, ty]);
+        else if (t === Terrain.Grass) grass.push([tx, ty]);
+      }
+    }
+    return {
+      tileSize: TILE_SIZE,
+      mapTiles: MAP_TILES,
+      walls: this.sim.walls.map((w) => ({ ...w })),
+      water,
+      grass,
+    };
   }
 }

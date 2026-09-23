@@ -9,6 +9,8 @@ import {
 import { InputManager } from "../input/InputManager.js";
 import { joinTankRoom } from "../net/ColyseusClient.js";
 import { CampRenderer } from "../render/CampRenderer.js";
+import { MapRenderer, type MapStaticPayload } from "../render/MapRenderer.js";
+import { ProjectileRenderer } from "../render/ProjectileRenderer.js";
 import { TankSprite } from "../render/TankSprite.js";
 import { Hud } from "../ui/Hud.js";
 import { Minimap } from "../ui/Minimap.js";
@@ -20,6 +22,8 @@ export class GameScene extends Phaser.Scene {
   private room!: Room;
   private tanks = new Map<string, TankSprite>();
   private camps!: CampRenderer;
+  private mapRenderer: MapRenderer | null = null;
+  private projectiles!: ProjectileRenderer;
   private selfId = "";
   private inputManager!: InputManager;
   private hud!: Hud;
@@ -36,6 +40,7 @@ export class GameScene extends Phaser.Scene {
     this.room = await joinTankRoom(data.nickname || "Guest");
     this.selfId = this.room.sessionId;
     this.camps = new CampRenderer(this);
+    this.projectiles = new ProjectileRenderer(this);
     this.hud = new Hud(this);
     this.minimap = new Minimap(this);
     this.cameras.main.setBounds(0, 0, MAP_WORLD_SIZE, MAP_WORLD_SIZE);
@@ -53,10 +58,15 @@ export class GameScene extends Phaser.Scene {
         this.scene.start("DeathScene", { stats: payload.stats });
       }
     });
+    this.room.onMessage("mapStatic", (msg: MapStaticPayload) => {
+      if (this.mapRenderer) return;
+      this.mapRenderer = new MapRenderer(this, msg);
+    });
     this.room.onMessage("visor", (msg: VisibleSnapshot) => {
       this.visor = msg;
       this.neutrals = msg.neutrals ?? [];
       this.airdrops = msg.airdrops ?? [];
+      this.projectiles?.syncFromMessage(msg.projectiles ?? []);
     });
     // Legacy fallback if server still emits worldMeta (minimap neutrals/airdrops).
     this.room.onMessage(
@@ -71,6 +81,8 @@ export class GameScene extends Phaser.Scene {
     this.inputManager = new InputManager(this, false);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.inputManager?.destroy();
+      this.mapRenderer?.destroy();
+      this.mapRenderer = null;
     });
   }
 
