@@ -5,3 +5,4 @@ export * from "./map/terrain.js";
 export * from "./map/campLayout.js";
 export * from "./map/walls.js";
 export * from "./map/createInitialMap.js";
+export * from "./sim/ownership.js";
