@@ -1,6 +1,11 @@
 import Phaser from "phaser";
 import type { Room } from "colyseus.js";
-import { MAP_WORLD_SIZE, type DeathStats, type PlayerInput } from "@tcc/shared";
+import {
+  MAP_WORLD_SIZE,
+  type DeathStats,
+  type PlayerInput,
+  type VisibleSnapshot,
+} from "@tcc/shared";
 import { InputManager } from "../input/InputManager.js";
 import { joinTankRoom } from "../net/ColyseusClient.js";
 import { CampRenderer } from "../render/CampRenderer.js";
@@ -21,6 +26,7 @@ export class GameScene extends Phaser.Scene {
   private minimap!: Minimap;
   private neutrals: WorldNeutral[] = [];
   private airdrops: WorldAirdrop[] = [];
+  private visor: VisibleSnapshot | null = null;
 
   constructor() {
     super("GameScene");
@@ -47,9 +53,16 @@ export class GameScene extends Phaser.Scene {
         this.scene.start("DeathScene", { stats: payload.stats });
       }
     });
+    this.room.onMessage("visor", (msg: VisibleSnapshot) => {
+      this.visor = msg;
+      this.neutrals = msg.neutrals ?? [];
+      this.airdrops = msg.airdrops ?? [];
+    });
+    // Legacy fallback if server still emits worldMeta (minimap neutrals/airdrops).
     this.room.onMessage(
       "worldMeta",
       (msg: { neutrals?: WorldNeutral[]; airdrops?: WorldAirdrop[] }) => {
+        if (this.visor) return;
         this.neutrals = msg.neutrals ?? [];
         this.airdrops = msg.airdrops ?? [];
       },
@@ -75,9 +88,13 @@ export class GameScene extends Phaser.Scene {
       };
       this.room.send("input", payload);
     }
+    const visibleIds = this.visor ? new Set(this.visor.playerIds) : null;
     for (const [id, sprite] of this.tanks) {
       const p = this.room.state.players.get(id);
       if (p) sprite.sync(p);
+      const show = id === this.selfId || visibleIds === null || visibleIds.has(id);
+      sprite.body.setVisible(show);
+      sprite.label.setVisible(show);
       if (id === this.selfId && p) {
         this.cameras.main.centerOn(p.tank.x, p.tank.y);
       }

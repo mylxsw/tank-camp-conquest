@@ -14,3 +14,4 @@ export * from "./sim/softPressure.js";
 export * from "./sim/joinAssign.js";
 export * from "./sim/tick.js";
 export * from "./sim/ai.js";
+export * from "./sim/visibility.js";

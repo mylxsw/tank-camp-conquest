@@ -14,6 +14,7 @@ import { CampSchema, PlayerSchema, TankRoomState, TankSchema } from "./schema.js
 
 import { idleInput, normalizeInput } from "../systems/applyInput.js";
 import { refreshAiInputs } from "../systems/aiDriver.js";
+import { computeVisibility } from "../systems/visibility.js";
 
 export type JoinOptions = { nickname?: string };
 
@@ -23,6 +24,7 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
   private inputs: Record<string, PlayerInput> = {};
   private rand = Math.random;
   private aiAccMs = 0;
+  private visorAccMs = 0;
 
   onCreate(): void {
     this.setState(new TankRoomState());
@@ -107,6 +109,13 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
               }
             : null,
         });
+      }
+    }
+    this.visorAccMs += 1000 / TICK_HZ;
+    if (this.visorAccMs >= 100) {
+      this.visorAccMs = 0;
+      for (const client of this.clients) {
+        client.send("visor", computeVisibility(this.sim, client.sessionId));
       }
     }
   }
