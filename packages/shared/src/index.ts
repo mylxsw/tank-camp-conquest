@@ -7,3 +7,4 @@ export * from "./map/walls.js";
 export * from "./map/createInitialMap.js";
 export * from "./sim/ownership.js";
 export * from "./sim/respawn.js";
+export * from "./sim/combat.js";
