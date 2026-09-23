@@ -34,6 +34,17 @@ export class MapRenderer {
     this.layer.setDepth(-10);
     scene.cameras.main.setBackgroundColor(0x2a2420);
 
+    const mapPx = data.mapTiles * this.tile;
+    // One TileSprite fills the whole map (avoids 4096 Image objects on a 64² grid).
+    const ground = scene.add.tileSprite(
+      mapPx / 2,
+      mapPx / 2,
+      mapPx,
+      mapPx,
+      PIXEL_KEYS.ground,
+    );
+    this.layer.add(ground);
+
     for (const [tx, ty] of data.water) {
       this.layer.add(this.makeTile(PIXEL_KEYS.water, tx, ty));
     }
