@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { registerPixelAtlas } from "../render/PixelAtlas.js";
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -6,6 +7,8 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
+    registerPixelAtlas(this);
+
     const { width, height } = this.scale;
     this.add
       .text(width / 2, height / 2 - 40, "目标：用攻城弹拆掉敌方核心，占领营地；丢光营地出局", {
