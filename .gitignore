@@ -5,3 +5,6 @@ coverage
 *.log
 .env
 .env.*
+
+# TypeScript build metadata
+*.tsbuildinfo
