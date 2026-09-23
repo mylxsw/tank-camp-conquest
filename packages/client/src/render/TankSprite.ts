@@ -1,22 +1,20 @@
 import Phaser from "phaser";
+import { PIXEL_KEYS } from "./PixelAtlas.js";
 
-const BODY_W = 26;
-const BODY_H = 22;
 const BARREL_LEN = 18;
-const BARREL_W = 6;
 /** Snap when teleport/respawn distance exceeds this. */
 const SNAP_DIST = 80;
 const LERP = 0.28;
 
 export class TankSprite {
-  readonly body: Phaser.GameObjects.Rectangle;
-  readonly barrel: Phaser.GameObjects.Rectangle;
+  readonly body: Phaser.GameObjects.Image;
+  readonly barrel: Phaser.GameObjects.Image;
   readonly label: Phaser.GameObjects.Text;
   private targetX: number;
   private targetY: number;
   private displayX: number;
   private displayY: number;
-  private dir = 0;
+  private _dir = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -27,9 +25,13 @@ export class TankSprite {
     this.targetY = player.tank.y;
     this.displayX = player.tank.x;
     this.displayY = player.tank.y;
-    this.dir = player.tank.dir ?? 0;
-    this.body = scene.add.rectangle(this.displayX, this.displayY, BODY_W, BODY_H, color);
-    this.barrel = scene.add.rectangle(this.displayX, this.displayY, BARREL_LEN, BARREL_W, 0x222222);
+    this._dir = player.tank.dir ?? 0;
+    this.body = scene.add.image(this.displayX, this.displayY, PIXEL_KEYS.tankBody);
+    this.body.setDisplaySize(28, 28);
+    this.body.setTint(color);
+    this.barrel = scene.add.image(this.displayX, this.displayY, PIXEL_KEYS.tankBarrel);
+    this.barrel.setDisplaySize(6, BARREL_LEN);
+    this.barrel.setOrigin(0.5, 1);
     this.label = scene.add
       .text(this.displayX, this.displayY - 26, player.nickname, {
         fontSize: "12px",
@@ -39,6 +41,11 @@ export class TankSprite {
     this.applyDirVisual();
   }
 
+  /** Facing: 0 up, 1 right, 2 down, 3 left. */
+  get dir(): number {
+    return this._dir;
+  }
+
   /** Apply latest server pose; visual catches up via updateLerp. */
   sync(player: {
     nickname: string;
@@ -46,7 +53,7 @@ export class TankSprite {
   }): void {
     this.targetX = player.tank.x;
     this.targetY = player.tank.y;
-    if (player.tank.dir !== undefined) this.dir = player.tank.dir;
+    if (player.tank.dir !== undefined) this._dir = player.tank.dir;
     const dx = this.targetX - this.displayX;
     const dy = this.targetY - this.displayY;
     if (dx * dx + dy * dy > SNAP_DIST * SNAP_DIST) {
@@ -75,12 +82,10 @@ export class TankSprite {
   }
 
   private applyDirVisual(): void {
-    // 0 up, 1 right, 2 down, 3 left
-    const angle = (this.dir * 90) * (Math.PI / 180);
+    // 0 up, 1 right, 2 down, 3 left — barrel origin at base, tip toward facing.
+    const angle = this._dir * 90 * (Math.PI / 180);
     this.body.setRotation(angle);
-    const ox = Math.sin(angle) * (BARREL_LEN * 0.35);
-    const oy = -Math.cos(angle) * (BARREL_LEN * 0.35);
-    this.barrel.setPosition(this.displayX + ox, this.displayY + oy);
+    this.barrel.setPosition(this.displayX, this.displayY);
     this.barrel.setRotation(angle);
   }
 
