@@ -1,5 +1,7 @@
 # 营地坦克割据
 
+Stage A client uses procedural pixel art (Phaser textures.generate) for tanks, terrain, shells, and cores. / Stage A 客户端使用程序生成像素贴图（坦克/地形/炮弹/核心）。
+
 浏览器俯视坦克割据（工作名）。pnpm monorepo：`shared` / `server` / `client`。
 
 ## 开发

@@ -9,6 +9,7 @@ import {
 import { InputManager } from "../input/InputManager.js";
 import { joinTankRoom } from "../net/ColyseusClient.js";
 import { CampRenderer } from "../render/CampRenderer.js";
+import { spawnHit, spawnMuzzle } from "../render/FxSprites.js";
 import { MapRenderer, type MapStaticPayload, type WallPatch } from "../render/MapRenderer.js";
 import { ProjectileRenderer } from "../render/ProjectileRenderer.js";
 import { TankSprite } from "../render/TankSprite.js";
@@ -32,6 +33,7 @@ export class GameScene extends Phaser.Scene {
   private airdrops: WorldAirdrop[] = [];
   private visor: VisibleSnapshot | null = null;
   private disconnected = false;
+  private wasFire = false;
 
   constructor() {
     super("GameScene");
@@ -43,6 +45,7 @@ export class GameScene extends Phaser.Scene {
     this.hud = new Hud(this);
     this.minimap = new Minimap(this);
     this.cameras.main.setBounds(0, 0, MAP_WORLD_SIZE, MAP_WORLD_SIZE);
+    this.cameras.main.setBackgroundColor(0x2a2420);
 
     try {
       this.room = await joinTankRoom(data.nickname || "Guest");
@@ -75,13 +78,15 @@ export class GameScene extends Phaser.Scene {
     });
     this.room.onMessage("wallPatch", (msg: { walls?: WallPatch[] } | WallPatch[]) => {
       const patches = Array.isArray(msg) ? msg : (msg.walls ?? []);
-      this.mapRenderer?.applyWallPatches(patches);
+      const hits = this.mapRenderer?.applyWallPatches(patches) ?? [];
+      for (const h of hits) spawnHit(this, h.x, h.y);
     });
     this.room.onMessage("visor", (msg: VisibleSnapshot) => {
       this.visor = msg;
       this.neutrals = msg.neutrals ?? [];
       this.airdrops = msg.airdrops ?? [];
-      this.projectiles?.syncFromMessage(msg.projectiles ?? []);
+      const removed = this.projectiles?.syncFromMessage(msg.projectiles ?? []) ?? [];
+      for (const r of removed) spawnHit(this, r.x, r.y);
     });
     // Legacy fallback if server still emits worldMeta (minimap neutrals/airdrops).
     this.room.onMessage(
@@ -125,6 +130,11 @@ export class GameScene extends Phaser.Scene {
         selectAmmo: sample.selectAmmo,
       };
       this.room.send("input", payload);
+      if (sample.fire && !this.wasFire) {
+        const self = this.tanks.get(this.selfId);
+        if (self) spawnMuzzle(this, self.x, self.y, self.dir);
+      }
+      this.wasFire = sample.fire;
     }
     const visibleIds = this.visor ? new Set(this.visor.playerIds) : null;
     for (const [id, sprite] of this.tanks) {
