@@ -13,6 +13,7 @@ import {
 import { CampSchema, PlayerSchema, TankRoomState, TankSchema } from "./schema.js";
 
 import { idleInput, normalizeInput } from "../systems/applyInput.js";
+import { refreshAiInputs } from "../systems/aiDriver.js";
 
 export type JoinOptions = { nickname?: string };
 
@@ -21,6 +22,7 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
   private sim!: RoomSimState;
   private inputs: Record<string, PlayerInput> = {};
   private rand = Math.random;
+  private aiAccMs = 0;
 
   onCreate(): void {
     this.setState(new TankRoomState());
@@ -73,6 +75,11 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
   }
 
   private tick(): void {
+    this.aiAccMs += 1000 / TICK_HZ;
+    if (this.aiAccMs >= 200) {
+      this.aiAccMs = 0;
+      refreshAiInputs(this.sim, this.inputs, this.sim.time, this.rand);
+    }
     const events = simulateTick(this.sim, this.inputs, TICK_DT, this.rand);
     for (const id of Object.keys(this.inputs)) {
       const inp = this.inputs[id]!;
@@ -161,7 +168,18 @@ export class TankRoom extends Colyseus.Room<TankRoomState> {
   }
 
   private fillAiIfNeeded(): void {
-    // Task 13: fill empty camps toward AI_FILL_TARGET_PLAYERS via assignCampForJoin(..., isAi=true).
-    void AI_FILL_TARGET_PLAYERS;
+    const living = Object.values(this.sim.players).filter((p) => !p.eliminated);
+    let guard = 0;
+    while (living.length + guard < AI_FILL_TARGET_PLAYERS) {
+      const empty = this.sim.camps.some((c) => c.ownerPlayerId === null);
+      if (!empty) break;
+      const id = `ai-${this.sim.time.toFixed(3)}-${Math.floor(this.rand() * 1e6)}`;
+      const result = assignCampForJoin(this.sim, id, `Bot${guard}`, true, this.sim.time, this.rand, id);
+      if (!result) break;
+      this.inputs[id] = idleInput();
+      this.syncPlayer(id);
+      guard += 1;
+    }
+    this.syncCamps();
   }
 }
